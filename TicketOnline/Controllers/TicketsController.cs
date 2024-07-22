@@ -90,14 +90,16 @@ namespace TicketOnline.Controllers
             List<Ticket> tickets = new List<Ticket>();
             SqlMoney money = 0;
             var a = HttpContext.Request.Cookies["customerid"];
-            Order order = new Order() {
+            Order order = new Order()
+            {
                 CustomerId = a,
                 Status = false,
-                Total = 0};
+                Total = 0
+            };
             _context.Orders.Add(order);
             TicketOrder ticketadd = ticket.Tickets;
             var showtime = _context.ShowTimes.Find(ticketadd.ShowTimeId);
-            foreach(var item in ticketadd.Tickets)
+            foreach (var item in ticketadd.Tickets)
             {
                 var seat = _context.Seats.First(s => (s.SeatNumber == Int16.Parse(item.SeatNumber)) && (s.RowName == char.Parse(item.SeatRow)) && (s.RoomNumberId == showtime.RoomNumberId));
                 Ticket ticket1 = new Ticket()
@@ -110,32 +112,36 @@ namespace TicketOnline.Controllers
                 money += ticket1.Price;
                 _context.Tickets.Add(ticket1);
             }
-            if(ticket.Products != null)
-            foreach(var item in ticket.Products)
-            {
-                OrderItem orderItem = new OrderItem()
+            if (ticket.Products != null)
+                foreach (var item in ticket.Products)
                 {
-                    OrderId = order.Id,
-                    ProductId = item.ProductId,
-                    Quantity = item.Quantity
-                };
+                    OrderItem orderItem = new OrderItem()
+                    {
+                        OrderId = order.Id,
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity
+                    };
                     orders.Add(orderItem);
                     var product = _context.Products.FirstOrDefault(p => p.Id == item.ProductId);
                     products.Add(product);
                     money += product.Price * orderItem.Quantity;
-                _context.OrderItems.Add(orderItem);
-            }
+                    _context.OrderItems.Add(orderItem);
+                }
             order.Total = (decimal)money;
             await _context.SaveChangesAsync();
 
-            foreach(var item in tickets)
+            foreach (var item in tickets)
             {
                 item.Seat = null;
             }
 
             var data = new { order = order, products = products, orderItems = orders, tickets = tickets };
             var json = JsonConvert.SerializeObject(data);
-            
+
+            EmailSender em = new EmailSender();
+            var customer = await _context.Customers.FindAsync(a);
+            em.SendOrderConfirmationEmail(customer.Email, order, tickets, orders, (decimal)money);
+
             return Ok(json);
         }
 
